@@ -1,0 +1,2 @@
+# EasyUpdateFromGithub
+更简单的让软件从Github一键更新
