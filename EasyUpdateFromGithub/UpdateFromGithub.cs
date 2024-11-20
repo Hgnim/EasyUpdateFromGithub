@@ -60,7 +60,7 @@ namespace EasyUpdateFromGithub
 			get => programVersionNumber;
 		}
 
-		string cacheDir = System.IO.Path.GetTempPath() + @"EasyUpdateFromGithub\";
+		string cacheDir = System.IO.Path.GetTempPath() + @"EasyUpdateFromGithub";
 		/// <summary>
 		/// 进行文件处理的临时文件夹<br/>
 		/// 如果没有设置该项，则默认为"C:\Users\[user]\AppData\Local\Temp\EasyUpdateFromGithub\"
@@ -69,6 +69,15 @@ namespace EasyUpdateFromGithub
 		{
 			set => cacheDir = value;
 			get => cacheDir;
+		}
+		/// <summary>
+		/// 更简单的设置文件处理的临时文件夹<br/>
+		/// 只需将该值设置为主程序名或其它不带特殊字符的名字即可<br/>
+		/// 它将会被自动匹配入临时文件夹路径内
+		/// </summary>
+		public string EasySetCacheDir
+		{
+			set=>cacheDir= $@"{System.IO.Path.GetTempPath()}{value}\EasyUpdateFromGithub";
 		}
 
 		/// <summary>
@@ -138,13 +147,13 @@ namespace EasyUpdateFromGithub
 			{
 				InfoOfInstall ioi = new()
 				{
-					newFileDir = $@"{dlFilePath}_AllFile\"
+					newFileDir = $@"{dlFilePath}_AllFile"
 				};
 				Directory.CreateDirectory(ioi.newFileDir);
 				if (unPack)
 					UnPack(dlFilePath, ioi.newFileDir);
 				else
-					File.Move(dlFilePath, $"{ ioi.newFileDir}{Path.GetFileName(dlFilePath)}");
+					File.Move(dlFilePath, $@"{ ioi.newFileDir}\{Path.GetFileName(dlFilePath)}",true);
 
 
 				ioi.installerFile = $@"{cacheDir}\EasyUpdateFromGithub_RunInstall.exe";
@@ -168,8 +177,9 @@ namespace EasyUpdateFromGithub
 		/// 如果为空，则使用当前程序所在的目录
 		/// <paramref name="useAdmin">是否使用管理员权限运行</paramref>
 		/// <paramref name="openOnOver">在执行完成后是否自动打开可执行文件</paramref>
+		/// <paramref name="waitTime">安装进程等待程序退出的时间，单位: ms</paramref>
 		/// </param>
-		public static void InstallFile(InfoOfInstall ioi,string? installDir=null,bool useAdmin=false,bool openOnOver=true)
+		public void InstallFile(InfoOfInstall ioi,string? installDir=null,bool useAdmin=false,bool openOnOver=true,int waitTime=0)
 		{
 			if (installDir != null)
 				ioi.oldFileDir = installDir;
@@ -183,16 +193,16 @@ namespace EasyUpdateFromGithub
 					UseShellExecute = true,
 					CreateNoWindow = true,
 					FileName = ioi.installerFile,
-					Arguments = $" {ioi.newFileDir} {ioi.oldFileDir}"
+					Arguments = $" {waitTime} {ioi.newFileDir} {ioi.oldFileDir}"
 				}
 			};
 			if (useAdmin)
 				process.StartInfo.Verb = "RunAs";
 			if (openOnOver)
-				process.StartInfo.Arguments += $" {ioi.exeFile}";
+				process.StartInfo.Arguments += $" \"{ioi.exeFile} &\"";
 			else
 				process.StartInfo.Arguments += " NULL";
-		    process.Start();
+			process.Start();
 		}
 	}
 }

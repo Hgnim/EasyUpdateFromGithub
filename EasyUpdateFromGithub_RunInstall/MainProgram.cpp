@@ -45,26 +45,29 @@ static bool moveFile(string oldPath,string newPath) {
 /// </summary>
 /// <param name="argc"></param>
 /// <param name="argv">
+/// 参数是必须的，否则程序可能会无法正常运行<br/>
 /// 0: 默认<br/>
-/// 1: 被移动的所有文件所在的目录<br/>
-/// 2: 目标目录<br/>
-/// 3: 执行安装完后的可执行文件路径，为NULL时禁用<br/>
+/// 1: 执行前等待的时间
+/// 2: 被移动的所有文件所在的目录<br/>
+/// 3: 目标目录<br/>
+/// 4: 执行安装完后的可执行文件路径，为NULL时禁用<br/>
 /// </param>
 /// <returns></returns>
 int main(int argc, char* argv[])
 {
     try {
+        Sleep(stoi(argv[1]));
         cout << "开始检查文件..." << endl;
-        vector<string> moveFiles = getDirAllFile(argv[1]);
+        vector<string> moveFiles = getDirAllFile(argv[2]);
     rego:;
         if (moveFiles.size() > 0) {
             cout << "开始执行文件操作..." << endl;
             for (auto& file : moveFiles) {
-                moveFile(argv[1] + string("\\") + file, argv[2] + string("\\") + file);
+                moveFile(argv[2] + string("\\") + file, argv[3] + string("\\") + file);
             }
         }
         cout << "验证文件..." << endl;
-        moveFiles = getDirAllFile(argv[1]);
+        moveFiles = getDirAllFile(argv[2]);
         if (moveFiles.size() > 0)
         {
             cout << "验证失败，等待1秒后重新尝试执行..." << endl;
@@ -73,8 +76,8 @@ int main(int argc, char* argv[])
         }
         cout << "完成!" << endl;
 
-        if (argv[3] != "NULL")
-            system(argv[3]);
+        if (string(argv[4]) != "NULL")
+            system(argv[4]);
         system("timeout /t 3");
     }
     catch (...) { 
