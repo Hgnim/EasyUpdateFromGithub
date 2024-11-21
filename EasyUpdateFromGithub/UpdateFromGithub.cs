@@ -81,10 +81,31 @@ namespace EasyUpdateFromGithub
 		}
 
 		/// <summary>
-		/// 根据RepositoryURL检查当前程序是否有可用的更新
+		/// 检查更新函数返回的信息
 		/// </summary>
-		/// <returns>有可用的更新将返回true，否则返回false</returns>
-		public bool CheckUpdate()
+		public class CheckUpdateValue
+		{
+			/// <summary>
+			/// 是否包含更新
+			/// </summary>
+			public bool haveUpdate;
+			/// <summary>
+			/// 新版本的字符串
+			/// </summary>
+			public string newVersionStr;
+			/// <summary>
+			/// 发布时间
+			/// </summary>
+			public string publishedTime;
+			/// <summary>
+			/// 该发布页所有文件的下载次数
+			/// </summary>
+			public int downloadCount=-1;
+		}
+		/// <summary>
+		/// 根据RepositoryURL检查当前程序是否有可用的更新和获取其它信息
+		/// </summary>
+		public CheckUpdateValue CheckUpdate()
 		{
 			Task<string> task = new(() => GetUrlResponseAsync(repositoryUrlApi_relLatest!).Result);
 			task.Start();
@@ -92,31 +113,48 @@ namespace EasyUpdateFromGithub
 			return CheckUpdateX(task.Result);
 		}
 		/// <summary>
-		/// 根据RepositoryURL检查当前程序是否有可用的更新
+		/// 根据RepositoryURL检查当前程序是否有可用的更新和获取其它信息
 		/// </summary>
-		/// <returns>有可用的更新将返回true，否则返回false</returns>
-		public async Task<bool> CheckUpdateAsync()
+		public async Task<CheckUpdateValue> CheckUpdateAsync()
 		{
 			string ret = await GetUrlResponseAsync(repositoryUrlApi_relLatest!);
 			return CheckUpdateX(ret);
 		}
-		bool CheckUpdateX(string ret)
+		CheckUpdateValue CheckUpdateX(string ret)
 		{
-			long latestVersionNumber = long.Parse(Regex.Replace(JsonNode.Parse(ret)!["tag_name"]!.GetValue<string>(), @"[^0-9]", ""));
-			long pvn = programVersionNumber;
-			//将两个版本号的长度进行比较，将两个版本号的长度统一后再进行大小比较
-			if (latestVersionNumber.ToString().Length > pvn.ToString().Length)
+			CheckUpdateValue cuv = new();
 			{
-				latestVersionNumber = long.Parse(latestVersionNumber.ToString()[..pvn.ToString().Length]);
+				cuv.newVersionStr = JsonNode.Parse(ret)!["tag_name"]!.GetValue<string>();
+				long latestVersionNumber = long.Parse(Regex.Replace(cuv.newVersionStr, @"[^0-9]", ""));
+				long pvn = programVersionNumber;
+				//将两个版本号的长度进行比较，将两个版本号的长度统一后再进行大小比较
+				if (latestVersionNumber.ToString().Length > pvn.ToString().Length)
+				{
+					latestVersionNumber = long.Parse(latestVersionNumber.ToString()[..pvn.ToString().Length]);
+				}
+				else if (latestVersionNumber.ToString().Length < pvn.ToString().Length)
+				{
+					pvn = long.Parse(pvn.ToString()[..latestVersionNumber.ToString().Length]);
+				}
+				cuv.haveUpdate = (latestVersionNumber > pvn);
 			}
-			else if (latestVersionNumber.ToString().Length < pvn.ToString().Length)
+			cuv.publishedTime = JsonNode.Parse(ret)!["published_at"]!.GetValue<string>().Replace('T', ' ').Replace("Z","");
 			{
-				pvn = long.Parse(pvn.ToString()[..latestVersionNumber.ToString().Length]);
+				int num = 0;
+				for (int i = 0; true; i++)
+				{
+					try
+					{
+						JsonNode jn = JsonNode.Parse(ret)!["assets"]![i]!["download_count"]!;
+						if (jn != null)
+							num += jn.GetValue<int>();
+						else break;
+					}
+					catch { break; }
+				} 
+				cuv.downloadCount = num;
 			}
-			if (latestVersionNumber > pvn)
-				return true;
-			else
-				return false;
+			return cuv;
 		}
 
 
@@ -178,13 +216,18 @@ namespace EasyUpdateFromGithub
 		/// <paramref name="useAdmin">是否使用管理员权限运行</paramref>
 		/// <paramref name="openOnOver">在执行完成后是否自动打开可执行文件</paramref>
 		/// <paramref name="waitTime">安装进程等待程序退出的时间，单位: ms</paramref>
+		/// <paramref name="exePath">可执行文件路径，如果openOnOver参数为true，则在安装结束后执行该路径的程序。<br/>
+		/// 如果该参数为null，则自动获取当前可执行文件的路径。
+		/// </paramref>
 		/// </param>
-		public void InstallFile(InfoOfInstall ioi,string? installDir=null,bool useAdmin=false,bool openOnOver=true,int waitTime=0)
+		public void InstallFile(InfoOfInstall ioi,string? installDir=null,bool useAdmin=false,bool openOnOver=true,int waitTime=0,string? exePath=null)
 		{
 			if (installDir != null)
 				ioi.oldFileDir = installDir;
 			else
 				ioi.oldFileDir = Environment.CurrentDirectory;
+			if(exePath != null)
+				ioi.exeFile = exePath;
 			
 			Process process = new()
 			{
@@ -199,7 +242,7 @@ namespace EasyUpdateFromGithub
 			if (useAdmin)
 				process.StartInfo.Verb = "RunAs";
 			if (openOnOver)
-				process.StartInfo.Arguments += $" \"{ioi.exeFile} &\"";
+				process.StartInfo.Arguments += $" {ioi.exeFile}";
 			else
 				process.StartInfo.Arguments += " NULL";
 			process.Start();
