@@ -88,19 +88,23 @@ namespace EasyUpdateFromGithub
 			/// <summary>
 			/// 是否包含更新
 			/// </summary>
-			public bool haveUpdate;
+			public bool HaveUpdate => haveUpdate;
+			internal bool haveUpdate;
 			/// <summary>
 			/// 新版本的字符串
 			/// </summary>
-			public string newVersionStr;
+			public string NewVersionStr=>newVersionStr;
+			internal string newVersionStr;
 			/// <summary>
 			/// 发布时间
 			/// </summary>
-			public string publishedTime;
+			public string PublishedTime=>publishedTime;
+			internal string publishedTime;
 			/// <summary>
 			/// 该发布页所有文件的下载次数
 			/// </summary>
-			public int downloadCount=-1;
+			public int DownloadCount => downloadCount;
+			internal int downloadCount=-1;
 		}
 		/// <summary>
 		/// 根据RepositoryURL检查当前程序是否有可用的更新和获取其它信息
