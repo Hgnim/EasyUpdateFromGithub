@@ -17,6 +17,7 @@ namespace EasyUpdateFromGithub
 		/// <summary>
 		/// 下载文件
 		/// </summary>
+		/// <param name="url"></param>
 		/// <param name="filePath">写入的文件路径</param>
 		internal static async Task<bool> DownloadFile(string url,string filePath)
 		{

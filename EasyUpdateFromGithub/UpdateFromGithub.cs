@@ -8,6 +8,9 @@ using static EasyUpdateFromGithub.ToolClass;
 
 namespace EasyUpdateFromGithub
 {
+	/// <summary>
+	/// 自动从Github获取更新
+	/// </summary>
 	public class UpdateFromGithub
 	{
 		string? repositoryUrl;
@@ -55,6 +58,9 @@ namespace EasyUpdateFromGithub
 			get => programVersion!;
 		}
 		long programVersionNumber = -1;
+		/// <summary>
+		/// 远程程序的版本号，整数类型
+		/// </summary>
 		public long ProgramVersionNumber
 		{
 			get => programVersionNumber;
@@ -85,26 +91,29 @@ namespace EasyUpdateFromGithub
 		/// </summary>
 		public class CheckUpdateValue
 		{
+			internal bool haveUpdate;
 			/// <summary>
 			/// 是否包含更新
 			/// </summary>
 			public bool HaveUpdate => haveUpdate;
-			internal bool haveUpdate;
+
+			internal string newVersionStr="";
 			/// <summary>
 			/// 新版本的字符串
 			/// </summary>
 			public string NewVersionStr=>newVersionStr;
-			internal string newVersionStr;
+
+			internal string publishedTime="";
 			/// <summary>
 			/// 发布时间
 			/// </summary>
 			public string PublishedTime=>publishedTime;
-			internal string publishedTime;
+
+			internal int downloadCount = -1;
 			/// <summary>
 			/// 该发布页所有文件的下载次数
 			/// </summary>
-			public int DownloadCount => downloadCount;
-			internal int downloadCount=-1;
+			public int DownloadCount => downloadCount;			
 		}
 		/// <summary>
 		/// 根据RepositoryURL检查当前程序是否有可用的更新和获取其它信息
@@ -161,13 +170,32 @@ namespace EasyUpdateFromGithub
 			return cuv;
 		}
 
-
+		/// <summary>
+		/// 执行安装的信息
+		/// </summary>
 		public class InfoOfInstall
 		{
 			internal string newFileDir = "";
 			internal string oldFileDir = "";
 			internal string installerFile = "";
 			internal string exeFile = "";
+
+			/// <summary>
+			/// 新版本的文件目录
+			/// </summary>
+			public string NewFileDir => newFileDir;
+			/// <summary>
+			/// 旧版本的文件目录
+			/// </summary>
+			public string OldFileDir => oldFileDir; 
+			/// <summary>
+			/// 安装程序的文件位置
+			/// </summary>
+			public string InstallerFile => installerFile; 
+			/// <summary>
+			/// 安装完后执行的可执行文件位置
+			/// </summary>
+			public string ExeFile => exeFile; 
 		}
 		/// <summary>
 		/// 下载发布文件
@@ -216,13 +244,13 @@ namespace EasyUpdateFromGithub
 		/// <param name="ioi">安装信息</param>
 		/// <param name="installDir">
 		/// 选择安装目录，将会把下载的文件(或是解压的文件)移动到指定的目录<br/>
-		/// 如果为空，则使用当前程序所在的目录
-		/// <paramref name="useAdmin">是否使用管理员权限运行</paramref>
-		/// <paramref name="openOnOver">在执行完成后是否自动打开可执行文件</paramref>
-		/// <paramref name="waitTime">安装进程等待程序退出的时间，单位: ms</paramref>
-		/// <paramref name="exePath">可执行文件路径，如果openOnOver参数为true，则在安装结束后执行该路径的程序。<br/>
+		/// 如果为空，则使用当前程序所在的目录 
+		/// <param name="useAdmin">是否使用管理员权限运行</param>
+		/// <param name="openOnOver">在执行完成后是否自动打开可执行文件</param>
+		/// <param name="waitTime">安装进程等待程序退出的时间，单位: ms</param>
+		/// <param name="exePath">可执行文件路径，如果openOnOver参数为true，则在安装结束后执行该路径的程序。<br/>
 		/// 如果该参数为null，则自动获取当前可执行文件的路径。
-		/// </paramref>
+		/// </param>
 		/// </param>
 		public void InstallFile(InfoOfInstall ioi,string? installDir=null,bool useAdmin=false,bool openOnOver=true,int waitTime=0,string? exePath=null)
 		{
