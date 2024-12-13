@@ -6,11 +6,19 @@ namespace EasyUpdateFromGithub
 	static class ToolClass
 	{
 		/// <summary>
-		/// 获取指定url的返回值
+		/// 获取github api请求的返回值
 		/// </summary>
-		internal static async Task<string> GetUrlResponseAsync(string url)
+		internal static async Task<string> GetGithubApiResponseAsync(string url)
 		{
-			var response = await new HttpClient().GetAsync(url);
+			HttpResponseMessage response;
+			using (HttpClient hc = new()) {
+				HttpRequestMessage request;
+				request =new(HttpMethod.Get, url);
+				request.Headers.Add("User-Agent", "EasyUpdateFromGithub");
+
+				 response = await hc.SendAsync(request);
+			}
+				//var request = await new HttpClient().GetAsync(url);
 			return await response.Content.ReadAsStringAsync();
 		}
 
@@ -45,7 +53,8 @@ namespace EasyUpdateFromGithub
 			{
 				if (!entry.IsDirectory)
 				{
-					//Console.WriteLine(entry.Key);
+					//发现一个潜在的漏洞，应该是属于Nuget包SharpCompress的问题
+					//漏洞：无法解压大小为0的文件
 					entry.WriteToDirectory(dirPath, new ExtractionOptions() { ExtractFullPath = true, Overwrite = true });
 				}
 			}

@@ -2,18 +2,32 @@
 #include <filesystem>
 #include<windows.h>
 #include <thread>
+#include <regex>
 
 using namespace std;
 using namespace std::filesystem;
 
+/// <summary>
+/// 遍历文件夹内的所有文件，会进行深度遍历，但不会将目录记录在内
+/// </summary>
+/// <param name="dirPath">遍历的文件路径</param>
+/// <returns></returns>
 static vector<string> getDirAllFile(const std::string dirPath)
 {
-    directory_iterator list(dirPath);
+    directory_iterator fileList(dirPath);
     vector<string> fileListStr;
-    for (auto& it : list)
+    for (auto& file : fileList)
     {
-         fileListStr.push_back(it.path().filename().string());
-         cout << "找到的文件: " << it.path().filename().string() << endl;
+         string fp = file.path().string();
+         if (is_directory(fp)) {
+             for (auto& fp2 : getDirAllFile(fp)) {
+                 fileListStr.push_back(fp2);
+            }
+         }
+         else {
+             fileListStr.push_back(fp);
+             cout << "找到的文件: " << fp << endl;
+         }
     }
     return fileListStr;	
 }
@@ -28,12 +42,24 @@ static bool removeFile(string filePath) {
     }
     return ret;
 }
+/// <summary>
+/// 移动文件函数，不支持移动文件夹，不要在文其中包含文件夹路径
+/// </summary>
+/// <param name="oldPath"></param>
+/// <param name="newPath"></param>
+/// <returns></returns>
 static bool moveFile(string oldPath,string newPath) {
     try {
-        if (exists(oldPath)) {   
-            //path p1 = oldPath;
-            //path p2 = newPath;
-            //rename(p1,p2);
+        if (exists(oldPath)) {
+            path dir_path = path(newPath).parent_path();
+            if (!exists(dir_path))//判断路径中的文件夹是否存在
+            {
+                try {
+                    create_directory(dir_path);//否则创建一个目录
+                    cout << "新建目录: +> " << dir_path.string() << endl;
+                }
+                catch (...) { cout << "新建目录失败(发生错误): /> " << dir_path.string() << endl; }
+            }
             if (MoveFileExA(oldPath.c_str(), newPath.c_str(), MOVEFILE_COPY_ALLOWED + MOVEFILE_REPLACE_EXISTING + MOVEFILE_WRITE_THROUGH) == 0)
                goto error;
             cout << "文件变动: " << oldPath << " ->> " << newPath << endl;
@@ -72,7 +98,9 @@ int main(int argc, char* argv[])
         if (moveFiles.size() > 0) {
             cout << "开始执行文件操作..." << endl;
             for (auto& file : moveFiles) {
-                moveFile(argv[2] + string("\\") + file, argv[3] + string("\\") + file);
+                string relativePath = file;
+                relativePath.replace(0, int(canonical(argv[2]).string().length()), "");
+                moveFile(file, argv[3] + relativePath);
             }
         }
         cout << "验证文件..." << endl;
@@ -92,17 +120,19 @@ int main(int argc, char* argv[])
         }
         cout << "完成!" << endl;
 
-        if (string(argv[4]) != "NULL")
+        if (string(argv[4]) != "NULL") {
+            cout << "尝试启动: " << argv[4] << endl;
             WinExec(argv[4], SW_SHOW);
+        }
 
         system("timeout /t 3");
         return 0;
     pauseProg:;
         system("pause");
     }
-    catch (...) { 
+   catch (...) {
         cout << "发生错误！" << endl; 
         system("pause");
-    }          
+    }        
 }
 

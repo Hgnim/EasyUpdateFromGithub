@@ -4,6 +4,7 @@ using System.Net;
 using System.Reflection;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
+using System.Threading;
 using static EasyUpdateFromGithub.ToolClass;
 
 namespace EasyUpdateFromGithub
@@ -17,7 +18,7 @@ namespace EasyUpdateFromGithub
 		/// <summary>
 		/// Github仓库地址，设置后会自动匹配RepositoryURLApi的值
 		/// </summary>
-		public string RepositoryURL
+		public required string RepositoryURL
 		{
 			set {
 				repositoryUrl = value;
@@ -29,12 +30,11 @@ namespace EasyUpdateFromGithub
 		}
 		string? repositoryUrlApi;
 		/// <summary>
+		/// 只读属性
 		/// Github仓库地址的Api
 		/// </summary>
-		public string RepositoryURLApi
-		{
-			get => repositoryUrlApi!;
-		}
+		public string RepositoryURLApi=> repositoryUrlApi!;
+
 		/// <summary>
 		/// release
 		/// </summary>
@@ -48,7 +48,7 @@ namespace EasyUpdateFromGithub
 		/// <summary>
 		/// 当前程序的版本号
 		/// </summary>
-		public string ProgramVersion
+		public required string ProgramVersion
 		{
 			set
 			{
@@ -59,12 +59,9 @@ namespace EasyUpdateFromGithub
 		}
 		long programVersionNumber = -1;
 		/// <summary>
-		/// 远程程序的版本号，整数类型
+		/// 当前程序的版本号，整数类型
 		/// </summary>
-		public long ProgramVersionNumber
-		{
-			get => programVersionNumber;
-		}
+		public long ProgramVersionNumber => programVersionNumber;
 
 		string cacheDir = System.IO.Path.GetTempPath() + @"EasyUpdateFromGithub";
 		/// <summary>
@@ -97,17 +94,28 @@ namespace EasyUpdateFromGithub
 			/// </summary>
 			public bool HaveUpdate => haveUpdate;
 
-			internal string newVersionStr="";
+			internal string latestVersionStr="";
 			/// <summary>
-			/// 新版本的字符串
+			/// 新版本的版本字符串
 			/// </summary>
-			public string NewVersionStr=>newVersionStr;
+			public string LatestVersionStr=>latestVersionStr;
 
-			internal string publishedTime="";
+			internal long latestVersionNumber = -1;
 			/// <summary>
-			/// 发布时间
+			/// 新版本的版本号
 			/// </summary>
-			public string PublishedTime=>publishedTime;
+			public long LatestVersionNumber => latestVersionNumber;
+
+			internal DateTime publishedTime;
+			/// <summary>
+			/// 发布时间，UTC标准时间
+			/// </summary>
+			public DateTime PublishedTime_UTC => publishedTime;
+			/// <summary>
+			/// 发布时间，该属性将会自动将UTC时间转换为本地时间
+			/// </summary>
+			public DateTime PublishedTime_Local => 
+				TimeZoneInfo.ConvertTimeFromUtc(PublishedTime_UTC, TimeZoneInfo.Local);
 
 			internal int downloadCount = -1;
 			/// <summary>
@@ -120,7 +128,7 @@ namespace EasyUpdateFromGithub
 		/// </summary>
 		public CheckUpdateValue CheckUpdate()
 		{
-			Task<string> task = new(() => GetUrlResponseAsync(repositoryUrlApi_relLatest!).Result);
+			Task<string> task = new(() => GetGithubApiResponseAsync(repositoryUrlApi_relLatest!).Result);
 			task.Start();
 			task.Wait();
 			return CheckUpdateX(task.Result);
@@ -130,28 +138,33 @@ namespace EasyUpdateFromGithub
 		/// </summary>
 		public async Task<CheckUpdateValue> CheckUpdateAsync()
 		{
-			string ret = await GetUrlResponseAsync(repositoryUrlApi_relLatest!);
+			string ret = await GetGithubApiResponseAsync(repositoryUrlApi_relLatest!);
 			return CheckUpdateX(ret);
 		}
 		CheckUpdateValue CheckUpdateX(string ret)
 		{
 			CheckUpdateValue cuv = new();
 			{
-				cuv.newVersionStr = JsonNode.Parse(ret)!["tag_name"]!.GetValue<string>();
-				long latestVersionNumber = long.Parse(Regex.Replace(cuv.newVersionStr, @"[^0-9]", ""));
+				cuv.latestVersionStr = JsonNode.Parse(ret)!["tag_name"]!.GetValue<string>();
+				cuv.latestVersionNumber = long.Parse(Regex.Replace(cuv.latestVersionStr, @"[^0-9]", ""));
 				long pvn = programVersionNumber;
 				//将两个版本号的长度进行比较，将两个版本号的长度统一后再进行大小比较
-				if (latestVersionNumber.ToString().Length > pvn.ToString().Length)
+				if (cuv.LatestVersionNumber.ToString().Length > pvn.ToString().Length)
 				{
-					latestVersionNumber = long.Parse(latestVersionNumber.ToString()[..pvn.ToString().Length]);
+					cuv.latestVersionNumber = long.Parse(cuv.LatestVersionNumber.ToString()[..pvn.ToString().Length]);
 				}
-				else if (latestVersionNumber.ToString().Length < pvn.ToString().Length)
+				else if (cuv.LatestVersionNumber.ToString().Length < pvn.ToString().Length)
 				{
-					pvn = long.Parse(pvn.ToString()[..latestVersionNumber.ToString().Length]);
+					pvn = long.Parse(pvn.ToString()[..cuv.LatestVersionNumber.ToString().Length]);
 				}
-				cuv.haveUpdate = (latestVersionNumber > pvn);
+				cuv.haveUpdate = (cuv.LatestVersionNumber > pvn);
 			}
-			cuv.publishedTime = JsonNode.Parse(ret)!["published_at"]!.GetValue<string>().Replace('T', ' ').Replace("Z","");
+			cuv.publishedTime =
+				DateTime.SpecifyKind(
+					DateTime.Parse( 
+							JsonNode.Parse(ret)!["published_at"]!.GetValue<string>().Replace('T', ' ').Replace("Z","")
+							)
+				,DateTimeKind.Utc);//将时间Kind属性设置为UTC
 			{
 				int num = 0;
 				for (int i = 0; true; i++)
@@ -208,7 +221,7 @@ namespace EasyUpdateFromGithub
 		public async Task<InfoOfInstall?> DownloadReleaseAsync(int item, string tag = "latest", bool readyToInstall = true,bool unPack=true)
 		{
 			string url = $"{repositoryUrlApi_rel}/{tag}";
-			JsonNode json = JsonNode.Parse(await GetUrlResponseAsync(url!))!["assets"]![item]!;
+			JsonNode json = JsonNode.Parse(await GetGithubApiResponseAsync(url!))!["assets"]![item]!;
 			string dlFilePath = $@"{cacheDir}\{json["name"]}";
 			Directory.CreateDirectory(cacheDir);
 			await DownloadFile($"{json["browser_download_url"]}", dlFilePath);
