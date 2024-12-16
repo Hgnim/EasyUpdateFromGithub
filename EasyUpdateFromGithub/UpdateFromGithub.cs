@@ -21,7 +21,10 @@ namespace EasyUpdateFromGithub
 		public required string RepositoryURL
 		{
 			set {
-				repositoryUrl = value;
+				if (value[^1..] == "/" || value[^1..] == "\\") 
+					repositoryUrl = value[..^1];
+				else
+					repositoryUrl = value;
 				repositoryUrlApi = $"https://api.github.com/repos{repositoryUrl[(repositoryUrl.IndexOf("github.com") + 10)..]}";
 				repositoryUrlApi_rel = $"{repositoryUrlApi}/releases";
 				repositoryUrlApi_relLatest = $"{repositoryUrlApi_rel}/latest";
@@ -121,7 +124,19 @@ namespace EasyUpdateFromGithub
 			/// <summary>
 			/// 该发布页所有文件的下载次数
 			/// </summary>
-			public int DownloadCount => downloadCount;			
+			public int DownloadCount => downloadCount;
+
+			internal string releaseName = "";
+			/// <summary>
+			/// 发布页中的标题名
+			/// </summary>
+			public string ReleaseName => releaseName;
+
+			internal string releaseBody = "";
+			/// <summary>
+			/// 发布页中的说明内容
+			/// </summary>
+			public string ReleaseBody=>releaseBody;
 		}
 		/// <summary>
 		/// 根据RepositoryURL检查当前程序是否有可用的更新和获取其它信息
@@ -158,6 +173,8 @@ namespace EasyUpdateFromGithub
 					pvn = long.Parse(pvn.ToString()[..cuv.LatestVersionNumber.ToString().Length]);
 				}
 				cuv.haveUpdate = (cuv.LatestVersionNumber > pvn);
+				cuv.releaseName= JsonNode.Parse(ret)!["name"]!.GetValue<string>();
+				cuv.releaseBody= JsonNode.Parse(ret)!["body"]!.GetValue<string>();
 			}
 			cuv.publishedTime =
 				DateTime.SpecifyKind(
@@ -182,7 +199,118 @@ namespace EasyUpdateFromGithub
 			}
 			return cuv;
 		}
+		/// <summary>
+		/// 将被下载的目标文件的信息
+		/// </summary>
+		public class InfoOfDownloadFile {
+			/// <summary>
+			/// 文件名
+			/// </summary>
+			public required string Name {  get; set; }
+			/// <summary>
+			/// 文件大小
+			/// </summary>
+			public required ulong? Size { get;set; }
+			/// <summary>
+			/// 下载地址
+			/// </summary>
+			public required string DownloadUrl { get; set; }
+			/// <summary>
+			/// 该文件的发布者名称
+			/// </summary>
+			public required string UploaderName { get;set; }
+		}
+		/// <summary>
+		/// 获取需要下载的文件的信息
+		/// </summary>
+		/// <param name="fileRegex">
+		/// 用于选择文件的正则表达式<br/>
+		/// 名称符合所给正则表达式的文件将被选中，如果包含多个符合正则表达式的文件，则使用fileIndex参数选择指定文件<br/>
+		/// 如果为null，则使用文件编号来选择Release中的文件
+		/// </param>
+		/// <param name="fileIndex">
+		/// 文件编号<br/>
+		/// 如果fileRegex不为null，则代表符合条件的文件选择序号。否则则代表Release中所有文件的选择序号
+		/// </param>
+		/// <param name="tag">版本名，默认为latest</param>
+		/// <returns></returns>
+		public async Task<InfoOfDownloadFile> GetDownloadFileInfoAsync(Regex? fileRegex = null, int fileIndex = 0, string tag = "latest") {
+			string url = $"{repositoryUrlApi_rel}/{tag}";
+			JsonNode json;
+			if (fileRegex != null) {
+				JsonNode tmpj = JsonNode.Parse(await GetGithubApiResponseAsync(url!))!["assets"]!;
+				List<JsonNode> trueRegex = [];
+				for (int i = 0; true; i++) {
+					JsonNode tmpj2 = tmpj[i]!;
+					if (tmpj2 != null) {
+						if (fileRegex.IsMatch(tmpj2["name"]!.GetValue<string>())) {
+							trueRegex.Add(tmpj2);
+							break;
+						}
+					}
+					else break;
+				}
+				if (trueRegex.Count > 1) {
+					if (fileIndex < trueRegex.Count)
+						json = trueRegex[fileIndex];
+					else
+						json = trueRegex[^1];
+				}
+				else
+					json = trueRegex[0];
+			}
+			else {
+				json = JsonNode.Parse(await GetGithubApiResponseAsync(url!))!["assets"]![fileIndex]!;
+			}
 
+			return new() {
+				Name= json["name"]!.GetValue<string>(),
+				Size= json["size"]!.GetValue<ulong>(),
+				DownloadUrl= json["browser_download_url"]!.GetValue<string>(),
+				UploaderName= json["uploader"]!["login"]!.GetValue<string>(),
+			};
+		}
+		/// <summary>
+		/// github中源代码包的格式
+		/// </summary>
+		public enum GithubSourceCodeFile {
+			/// <summary>
+			/// zip格式的源码文件
+			/// </summary>
+			zip,
+			/// <summary>
+			/// tar.gz格式的源码文件<br/>
+			/// </summary>
+			[Obsolete("目前tar.gz格式不支持自动解压，请使用zip格式",true)]
+			targz,
+		}
+		/// <summary>
+		/// 获取需要下载的文件的信息
+		/// </summary>
+		/// <param name="gscf">源代码文件类型</param>
+		/// <param name="tag">版本名，默认为latest</param>
+		/// <returns></returns>
+		public async Task<InfoOfDownloadFile> GetDownloadFileInfoAsync(GithubSourceCodeFile gscf, string tag = "latest") {
+			string url = $"{repositoryUrlApi_rel}/{tag}";
+			JsonNode json = JsonNode.Parse(await GetGithubApiResponseAsync(url!))!;
+			string sourceFileType="";
+			switch (gscf) { 
+				case GithubSourceCodeFile.zip:
+					sourceFileType = ".zip";
+					break;
+#if false
+				case GithubSourceCodeFile.targz:
+					sourceFileType = ".tar.gz";
+					break;
+#endif
+			}
+			return new() {
+				Name = $"Source code{sourceFileType}",
+				Size = null,
+				DownloadUrl = $"{RepositoryURL}/archive/refs/tags/{json["tag_name"]!.GetValue<string>()}{sourceFileType}",
+				UploaderName = json["author"]!["login"]!.GetValue<string>(),
+			};
+		}
 		/// <summary>
 		/// 执行安装的信息
 		/// </summary>
@@ -213,18 +341,15 @@ namespace EasyUpdateFromGithub
 		/// <summary>
 		/// 下载发布文件
 		/// </summary>
-		/// <param name="item">文件编号</param>
-		/// <param name="tag">版本名，默认为latest</param>
+		/// <param name="iodf">目标文件信息</param>
 		/// <param name="readyToInstall">下载完成后，是否进行安装准备。如果为false，则返回null</param>
 		/// <param name="unPack">是否解压下载的文件，如果为true，会将下载的文件解压缩，不会判断其是否是压缩文件</param>
 		/// <returns>当参数readyToInstall为true时，会返回处理过的安装信息。如果该参数为false，则返回null</returns>
-		public async Task<InfoOfInstall?> DownloadReleaseAsync(int item, string tag = "latest", bool readyToInstall = true,bool unPack=true)
+		public async Task<InfoOfInstall?> DownloadReleaseAsync(InfoOfDownloadFile iodf, bool readyToInstall = true,bool unPack=true)
 		{
-			string url = $"{repositoryUrlApi_rel}/{tag}";
-			JsonNode json = JsonNode.Parse(await GetGithubApiResponseAsync(url!))!["assets"]![item]!;
-			string dlFilePath = $@"{cacheDir}\{json["name"]}";
+			string dlFilePath = $@"{cacheDir}\{iodf.Name}";
 			Directory.CreateDirectory(cacheDir);
-			await DownloadFile($"{json["browser_download_url"]}", dlFilePath);
+			await DownloadFile(iodf.DownloadUrl, dlFilePath);
 
 			if (readyToInstall)
 			{
@@ -281,13 +406,13 @@ namespace EasyUpdateFromGithub
 					UseShellExecute = true,
 					CreateNoWindow = true,
 					FileName = ioi.installerFile,
-					Arguments = $" {waitTime} {ioi.newFileDir} {ioi.oldFileDir}"
+					Arguments = $" {waitTime} \"{ioi.newFileDir}\" \"{ioi.oldFileDir}\""
 				}
 			};
 			if (useAdmin)
 				process.StartInfo.Verb = "RunAs";
 			if (openOnOver)
-				process.StartInfo.Arguments += $" {ioi.exeFile}";
+				process.StartInfo.Arguments += $" \"{ioi.exeFile}\"";
 			else
 				process.StartInfo.Arguments += " NULL";
 			process.Start();

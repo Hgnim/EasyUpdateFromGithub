@@ -32,9 +32,9 @@ namespace EasyUpdateFromGithub
 			try
 			{
 				Stream stream;
-				using (HttpClient client = new())
+				using (HttpClient hc = new())
 				{
-					stream = client.GetStreamAsync(url).Result;
+					stream = hc.GetStreamAsync(url).Result;
 				}
 				using (Stream fileStream = File.Create(filePath))
 				{
