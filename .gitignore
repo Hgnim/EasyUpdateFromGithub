@@ -1,0 +1,9 @@
+.vs
+*/bin
+*/obj
+*/Properties
+*/appsettings*.json
+*.user
+*/.config
+
+**/x64
