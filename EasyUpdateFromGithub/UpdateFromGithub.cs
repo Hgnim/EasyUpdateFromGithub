@@ -330,7 +330,7 @@ namespace EasyUpdateFromGithub
 			/// </summary>
 			public string OldFileDir => oldFileDir; 
 			/// <summary>
-			/// 安装程序的文件位置
+			/// 文件移动程序的文件位置
 			/// </summary>
 			public string InstallerFile => installerFile; 
 			/// <summary>
@@ -349,7 +349,9 @@ namespace EasyUpdateFromGithub
 		{
 			string dlFilePath = $@"{cacheDir}\{iodf.Name}";
 			Directory.CreateDirectory(cacheDir);
-			await DownloadFile(iodf.DownloadUrl, dlFilePath);
+			if(!await DownloadFile(iodf.DownloadUrl, dlFilePath)) {
+				throw new Exceptions.FileDownloadFailed();
+			}
 
 			if (readyToInstall)
 			{
@@ -387,10 +389,11 @@ namespace EasyUpdateFromGithub
 		/// <param name="openOnOver">在执行完成后是否自动打开可执行文件</param>
 		/// <param name="waitTime">安装进程等待程序退出的时间，单位: ms</param>
 		/// <param name="exePath">可执行文件路径，如果openOnOver参数为true，则在安装结束后执行该路径的程序。<br/>
-		/// 如果该参数为null，则自动获取当前可执行文件的路径。
+		/// 如果该参数为null，则从InfoOfInstall中获取当前可执行文件的路径。
 		/// </param>
+		/// <param name="enterNested">要进入嵌套的子目录的深度，默认0为禁用</param>
 		/// </param>
-		public void InstallFile(InfoOfInstall ioi,string? installDir=null,bool useAdmin=false,bool openOnOver=true,int waitTime=0,string? exePath=null)
+		public void InstallFile(InfoOfInstall ioi,string? installDir=null,bool useAdmin=false,bool openOnOver=true,int waitTime=0,string? exePath=null,uint enterNested=0)
 		{
 			if (installDir != null)
 				ioi.oldFileDir = installDir;
@@ -415,6 +418,7 @@ namespace EasyUpdateFromGithub
 				process.StartInfo.Arguments += $" \"{ioi.exeFile}\"";
 			else
 				process.StartInfo.Arguments += " NULL";
+			process.StartInfo.Arguments += $" {enterNested}";
 			process.Start();
 		}
 	}

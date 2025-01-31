@@ -38,10 +38,27 @@ $@"文件名: {iodf.Name}
 下载链接: {iodf.DownloadUrl}");
 			}
 			Console.WriteLine("开始下载更新...");
-			Task<UpdateFromGithub.InfoOfInstall> ioiTask= ufg.DownloadReleaseAsync(iodf, unPack:true)!;
-			ioiTask.Wait();			
-			Console.WriteLine("更新下载完成，开始模拟安装");
-			ufg.InstallFile(ioiTask.Result, @"D:\Test",waitTime:1000,openOnOver:false /*exePath: @"D:\Test\定时电源.exe"*/);
+			Task<UpdateFromGithub.InfoOfInstall> ioiTask;
+			try {
+				ioiTask = ufg.DownloadReleaseAsync(iodf, unPack: true)!;
+				ioiTask.Wait();
+			} catch (AggregateException ex) {
+				foreach (var innerEx in ex.InnerExceptions) {
+					if (innerEx is Exceptions.FileDownloadFailed subex) {
+						Console.WriteLine($"错误：{subex.Message}");
+					}
+				}
+				return;
+			}
+			Console.WriteLine("更新下载完成");
+			Console.WriteLine(
+$@"新版本文件目录: {ioiTask.Result.NewFileDir}
+旧版本文件目录: {ioiTask.Result.OldFileDir}
+文件移动程序的的路径: {ioiTask.Result.InstallerFile}
+安装完后执行的可执行文件路径: {ioiTask.Result.ExeFile}"
+);
+			Console.WriteLine("开始模拟安装");
+			ufg.InstallFile(ioiTask.Result, @"D:\Test",waitTime:1000,openOnOver:true ,exePath: @"D:\Test\test.bat",enterNested:1);
 
 			Console.WriteLine("模拟安装完成");			
 		}

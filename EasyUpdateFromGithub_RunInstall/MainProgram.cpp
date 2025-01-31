@@ -7,6 +7,22 @@
 using namespace std;
 using namespace std::filesystem;
 
+
+/// <summary>
+/// 返回一个当前目录下发现的目录的路径
+/// </summary>
+/// <param name="dirPath">当前目录</param>
+/// <returns></returns>
+static string enterDirPath(const string dirPath) {
+    directory_iterator fileList(dirPath);
+    for (auto& file : fileList) {
+        string fp = file.path().string();
+        if (is_directory(fp)) {
+            return fp;
+        }
+    }
+	return dirPath;//如果未找到则返回原路径
+}
 /// <summary>
 /// 遍历文件夹内的所有文件，会进行深度遍历，但不会将目录记录在内
 /// </summary>
@@ -85,26 +101,44 @@ static bool moveFile(string oldPath,string newPath) {
 /// 2: 被移动的所有文件所在的目录<br/>
 /// 3: 目标目录<br/>
 /// 4: 执行安装完后的可执行文件路径，为NULL时禁用<br/>
+/// 5: 进入目录嵌套的深度，为0时禁用<br/>
 /// </param>
 /// <returns></returns>
 int main(int argc, char* argv[])
 {
     try {
-        Sleep(stoi(argv[1]));
+		cout << "等待" << argv[1] << "毫秒后开始执行..." << endl;
+        Sleep(stoi(argv[1]));//执行前等待
+        string sourceDir = argv[2];
+        try {
+            for (int i = 0; i < stoi(argv[5]); i++) {
+                string tmp = enterDirPath(sourceDir);
+				if (tmp != sourceDir) {
+					sourceDir = tmp;
+                    cout << "进入嵌套目录: |> " << sourceDir << endl;	
+                }
+                else {
+                    cout << "进入嵌套目录失败(未找到目录) |/> " << sourceDir << "\\?" << endl;
+                    return 0;
+                }
+            }
+		}
+        catch (...) { cout << "进入嵌套目录失败(发生错误) |/> " << sourceDir << "|?" << endl; return 0; }
+
         cout << "开始检查文件..." << endl;
-        vector<string> moveFiles = getDirAllFile(argv[2]);
+        vector<string> moveFiles = getDirAllFile(sourceDir);
         int restartNum = 0;
     rego:;
         if (moveFiles.size() > 0) {
             cout << "开始执行文件操作..." << endl;
             for (auto& file : moveFiles) {
                 string relativePath = file;
-                relativePath.replace(0, int(canonical(argv[2]).string().length()), "");
+                relativePath.replace(0, int(canonical(sourceDir).string().length()), "");
                 moveFile(file, argv[3] + relativePath);
             }
         }
         cout << "验证文件..." << endl;
-        moveFiles = getDirAllFile(argv[2]);
+        moveFiles = getDirAllFile(sourceDir);
         if (moveFiles.size() > 0)
         {
             if (restartNum < 20) {
